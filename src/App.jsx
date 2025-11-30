@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./components/ui/button";
 import { LoginPage } from "./components/LoginPage";
 import { StudentDashboard } from "./components/StudentDashboard";
 import { LecturerDashboard } from "./components/LecturerDashboard";
 import { AdminDashboard } from "./components/AdminDashboard";
 import { GraduationCap, LogOut } from "lucide-react";
+import { getStudentById, getTeacherById } from "./data/storage";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -35,6 +36,13 @@ export default function App() {
     } catch (e) {
       // ignore storage errors
     }
+    // Update address bar to include user id and dashboard route
+    try {
+      const newPath = `/${user.id}/dashboard`;
+      window.history.replaceState({}, "", newPath);
+    } catch (e) {
+      // ignore
+    }
   };
 
   const handleLogout = () => {
@@ -44,7 +52,39 @@ export default function App() {
     } catch (e) {
       // ignore
     }
+    try {
+      window.history.replaceState({}, "", "/");
+    } catch (e) {}
   };
+
+  // If app loads at /:id/dashboard, try to auto-select that user (no password required).
+  // Allow path-based selection to override a persisted `currentUser` only when the
+  // path id differs from the current user's id. This enables deep-linking to
+  // another user's dashboard even when someone else was previously remembered.
+  useEffect(() => {
+    try {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      if (parts.length >= 2 && parts[1] === "dashboard") {
+        const id = parts[0];
+        // If we already have a current user matching this id, nothing to do.
+        if (currentUser && currentUser.id === id) return;
+
+        // try student first
+        const student = getStudentById(id);
+        if (student) {
+          setCurrentUser({ id: student.id, name: student.name, email: student.email, type: "student" });
+          return;
+        }
+        const teacher = getTeacherById(id);
+        if (teacher) {
+          setCurrentUser({ id: teacher.id, name: teacher.name, email: teacher.email, type: "lecturer", specialization: teacher.specialization });
+          return;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [currentUser]);
 
   // Show login page if no user is logged in
   if (!currentUser) {
